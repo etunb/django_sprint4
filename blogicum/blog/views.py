@@ -35,7 +35,16 @@ class ProfileEditForm(forms.ModelForm):
 class PostCreateForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ['title', 'text', 'image', 'category', 'location', 'pub_date']
+        fields = ('title', 'text', 'image', 'category', 'location', 'pub_date')
+        widgets = {
+            'pub_date': forms.DateTimeInput(
+                attrs={
+                    'type': 'datetime-local',
+                    'class': 'form-control',
+                },
+                format='%Y-%m-%dT%H:%M',
+            ),
+        }
 
 
 def index(request):
