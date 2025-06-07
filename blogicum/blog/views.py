@@ -7,7 +7,7 @@ from django.shortcuts import redirect
 from django.core.paginator import Paginator
 from django.contrib.auth.decorators import login_required
 from django import forms
-from django.db.models import Count
+from django.db.models import Count, QuerySet
 
 User = get_user_model()
 
@@ -47,6 +47,17 @@ class PostCreateForm(forms.ModelForm):
         }
 
 
+def paginate(post_list, request, per_page=10):
+    post_list = post_list.order_by('-pub_date')
+    paginator = Paginator(post_list, per_page)
+    page_number = request.GET.get("page")
+    return paginator.get_page(page_number)
+
+
+def get_annotated_posts(posts: QuerySet[Post]) -> QuerySet[Post]:
+    return posts.annotate(comment_count=Count('comments'))
+
+
 def index(request):
     post_list = Post.objects.filter(
         pub_date__lte=timezone.now(),
@@ -56,13 +67,9 @@ def index(request):
      .select_related('author', 'category')\
      .prefetch_related('comments')
 
-    post_list = post_list.annotate(comment_count=Count('comments'))
+    post_list = get_annotated_posts(post_list)
 
-    paginator = Paginator(post_list, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    context = {'page_obj': page_obj}
+    context = {'page_obj': paginate(post_list, request)}
     return render(request, 'blog/index.html', context)
 
 
@@ -80,14 +87,12 @@ def profile(request, username):
             category__is_published=True
         ).order_by('-pub_date')
     # Добавляем аннотацию с количеством комментариев
-    posts = posts.annotate(comment_count=Count('comments'))
-    paginator = Paginator(posts, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    posts = get_annotated_posts(posts)
+
     is_owner = request.user.is_authenticated and request.user == user
     context = {
         'profile': user,
-        'page_obj': page_obj,
+        'page_obj': paginate(posts, request),
         'is_owner': is_owner,
     }
     return render(
@@ -108,13 +113,9 @@ def category_posts(request, category_slug):
         pub_date__lte=timezone.now()
     ).order_by('-pub_date')
 
-    paginator = Paginator(post_list, 10)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
     context = {
         'category': category,
-        'page_obj': page_obj,
+        'page_obj': paginate(post_list, request),
     }
     return render(request, 'blog/category.html', context)
 
